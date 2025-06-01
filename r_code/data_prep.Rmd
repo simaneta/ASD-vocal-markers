@@ -1,0 +1,79 @@
+---
+title: "data-prep"
+author: "Aneta Simunkova"
+date: "2025-05-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load data from the matching task
+
+```{r}
+metadata <- readxl::read_excel('~/path/to/metadata')
+newdata_game <- readr::read_csv2('~/path/to/dataset')
+```
+
+## fix column classes 
+
+```{r}
+newdata_game <- newdata_game %>%
+  mutate(across(where(is.character), as.numeric)) %>%
+  select(-.folds) %>%
+  mutate(Diagnosis = as.factor(Diagnosis))
+```
+
+```{r}
+# prepare new train test sets, this time accounting for pre-scaling
+metadata <- metadata %>%
+  rename(ID = intake_ldc_pin) %>%
+  rename(Gender = intake_sex) %>%
+  filter(!ID %in% c(5382, 2886))
+
+newdata_game <- newdata_game %>%
+  left_join(metadata, by = "ID") %>%
+  filter(!ID %in% c(5382, 2886))
+```
+
+## aggregate data in the matching game df
+- take windows of 50 observations
+- create a mean of each feature
+- remove leftover observations that don't make it to 50
+
+```{r}
+# train game
+agg_newdata_game <- newdata_game %>%
+  group_by(ID) %>%
+  arrange(ID, .by_group = TRUE) %>%
+  mutate(
+    chunk = ceiling(row_number() / 50),
+    n_total = n()
+  ) %>%
+  filter(n_total >= 50, chunk <= floor(n_total / 50)) %>%
+  group_by(ID, chunk) %>%
+  summarise(
+    Diagnosis = first(Diagnosis),
+    Gender = first(Gender),
+    across(
+      .cols = names(.)[sapply(., is.numeric) & !names(.) %in% c("ID", "chunk", "n_total")],
+      .fns = ~mean(.x, na.rm = TRUE),
+      .names = "{.col}"
+    ),
+    .groups = "drop"
+  ) %>%
+  select(-c(chunk, utterance_length)) # remove chunk and utterance length
+```
+
+## drop Gender and Diagnosis + export new datasets into csv
+
+```{r}
+cleaned_df <- agg_newdata_game %>%
+  select(-any_of(c("Gender", "chunk", "utterance_length_mean", "utterance_length_sd")))
+
+write.csv(cleaned_df, file = file.path("path/to/data_game.csv")), row.names = FALSE)
+}
+```
+
+

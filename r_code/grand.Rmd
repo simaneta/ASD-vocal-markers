@@ -1,0 +1,77 @@
+---
+title: "grand_function"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load processing function
+source("grand_function.R")
+
+```
+
+## load data
+
+```{r load_data}
+data_game <- read_csv('path/to/data')
+demodata <- readxl::read_excel('path/to/metadata')
+```
+
+## run combinations
+
+Males only
+
+```{r males}
+  grand_function_new(features = data_q,
+                      demo = demodata,
+                      gender_group = "Male",
+                      featureset = "data_q",
+                      n_lasso_folds = 3)
+
+```
+
+Females only
+
+```{r females}
+grand_function_new(features = data_q,
+                      demo = demodata,
+                      gender_group = "Female",
+                      featureset = "data_q",
+                      n_lasso_folds = 3)
+```
+
+Mixed
+
+```{r mixed}
+# make sure that there is no overlap between mixed_train and male_test and female_test
+male_partitions <- partition_by_gender(
+  demo = demodata,
+  features = data_q,
+  hold_size = 0.3,
+  gender_group = "Male"
+)
+
+female_partitions <- partition_by_gender(
+  demo = demodata,
+  features = data_q,
+  hold_size = 0.3,
+  gender_group = "Female"
+)
+male_train_ids <- unique(male_partitions[[2]]$ID)
+male_test_ids <- unique(male_partitions[[1]]$ID)
+female_train_ids <- unique(female_partitions[[2]]$ID)
+female_test_ids <- unique(female_partitions[[1]]$ID)
+
+grand_function_new(features = data_q,
+                      demo = demodata,
+                      gender_group = "Mixed",
+                      featureset = "data_q",
+                      n_lasso_folds = 3,
+                      male_test_ids = male_test_ids,
+                      female_test_ids = female_test_ids,
+                      male_train_ids = male_train_ids,
+                      female_train_ids = female_train_ids)
+```
+
+
